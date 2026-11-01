@@ -75,6 +75,25 @@
   li.active .focusBtn { background: var(--accent); border-color: var(--accent); color: #fff; }
   .del { border: none; background: none; color: var(--muted); font-size: 1.1rem; padding: 2px 4px; }
   .del:hover { color: var(--accent); }
+  .name { cursor: text; }
+  .meta { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+  .meta .due-today { color: var(--accent); font-weight: 600; }
+  .meta .due-late { color: #d33; font-weight: 600; }
+  .meta .over { color: var(--accent); }
+  .handle { flex: none; color: #bbb; cursor: grab; touch-action: none; user-select: none; padding: 4px 0; font-size: 1rem; letter-spacing: -2px; }
+  li.dragging { opacity: .85; background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,.15); position: relative; z-index: 2; }
+  body.sorting { user-select: none; cursor: grabbing; }
+  li.editing { flex-wrap: wrap; gap: 8px; background: var(--soft); }
+  li.editing .eName { flex: 1 1 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 1rem; }
+  li.editing input[type=date], .dueRow input { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: .9rem; }
+  li.editing .est { background: var(--card); height: 34px; }
+  li.editing .sp { flex: 1; }
+  li.editing .btnS { border: none; border-radius: 8px; padding: 7px 14px; background: var(--accent); color: #fff; font-weight: 600; }
+  li.editing .btnC { border: none; border-radius: 8px; padding: 7px 12px; background: none; color: var(--muted); }
+  .dueRow { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+  .dueRow input { background: var(--bg); }
+  .dueRow .clr { border: none; background: none; color: var(--muted); padding: 2px 4px; }
+  .note { color: var(--muted); font-size: .8rem; margin-top: 8px; }
   .empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: .95rem; }
 
   details { margin-top: 12px; }
@@ -130,6 +149,10 @@
       </div>
       <button class="addBtn" type="submit">新增</button>
     </form>
+    <div class="dueRow">
+      <label for="addDue">📅 截止日（選填）</label><input type="date" id="addDue">
+      <button type="button" class="clr" id="addDueClr" aria-label="清除日期" hidden>×</button>
+    </div>
     <div class="filters">
       <button data-filter="open" class="on">待辦 <span id="nOpen">0</span></button>
       <button data-filter="done">已完成 <span id="nDone">0</span></button>
@@ -137,7 +160,12 @@
     <ul id="list"></ul>
     <details id="moreBox">
       <summary>更多</summary>
-      <div class="settings"><div class="full"><button class="ghost" id="clearDone">清除已完成</button></div></div>
+      <div class="settings"><div class="full">
+        <button class="ghost" id="exportBtn">匯出備份</button>
+        <label class="ghost" style="border-radius:8px;padding:8px 12px;cursor:pointer">匯入備份<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+        <button class="ghost" id="clearDone">清除已完成</button>
+      </div></div>
+      <div class="note">小技巧：點任務文字可編輯；拖曳左邊 ⋮⋮ 可調整順序，排最前面的會優先成為「正在做」。資料只存在這台裝置的瀏覽器，換裝置或清除瀏覽資料前請先匯出備份。</div>
     </details>
   </section>
 
@@ -158,7 +186,19 @@
   // ===================== 待辦清單 =====================
   let tasks = store.get('todo-tasks', []);          // {id, title, est, spent, done}
   let currentId = store.get('todo-current', null);   // 目前專注的任務
-  let filter = 'open', est = 1;
+  let filter = 'open', est = 1, editingId = null, editEst = 1;
+  const dayStr = (d = new Date()) => d.toLocaleDateString('sv');  // YYYY-MM-DD（本地時區）
+  function dueInfo(due, done) {
+    if (!due) return null;
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const diff = Math.round((new Date(due + 'T00:00:00') - t0) / 864e5);
+    const md = `${+due.slice(5, 7)}/${+due.slice(8)}`;
+    if (done) return { text: `📅 ${md}`, cls: '' };
+    if (diff < 0) return { text: `📅 ${md} · 逾期 ${-diff} 天`, cls: 'due-late' };
+    if (diff === 0) return { text: `📅 今天到期`, cls: 'due-today' };
+    if (diff === 1) return { text: `📅 ${md} · 明天`, cls: '' };
+    return { text: `📅 ${md} · 還有 ${diff} 天`, cls: '' };
+  }
   const saveTasks = () => { store.set('todo-tasks', tasks); store.set('todo-current', currentId); };
   const current = () => tasks.find(t => t.id === currentId && !t.done) || null;
 
@@ -166,11 +206,18 @@
     const open = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
     $('nOpen').textContent = open.length; $('nDone').textContent = done.length;
     const items = filter === 'open' ? open : done;
-    $('list').innerHTML = items.length ? items.map(t => `
+    $('list').innerHTML = items.length ? items.map(t => t.id === editingId ? `
+      <li data-id="${t.id}" class="editing">
+        <input class="eName" value="${esc(t.title)}" maxlength="120" aria-label="任務名稱">
+        <div class="est" title="預估番茄數"><button type="button" data-act="eMinus">−</button><span class="eEst">🍅${editEst}</span><button type="button" data-act="ePlus">+</button></div>
+        <input type="date" class="eDue" value="${t.due || ''}" aria-label="截止日">
+        <span class="sp"></span>
+        <button class="btnC" data-act="cancel">取消</button><button class="btnS" data-act="save">儲存</button>
+      </li>` : `
       <li data-id="${t.id}" class="${t.done ? 'done' : ''} ${t.id === currentId && !t.done ? 'active' : ''}">
+        ${t.done ? '' : '<span class="handle" title="拖曳排序">⋮⋮</span>'}
         <button class="check" data-act="toggle" aria-label="${t.done ? '標為未完成' : '完成'}">${t.done ? '✓' : ''}</button>
-        <span class="name">${esc(t.title)}</span>
-        <span class="count ${t.spent > t.est ? 'over' : ''}" title="已用 / 預估番茄">🍅 ${t.spent}/${t.est}</span>
+        <div class="name" data-act="edit" title="點一下編輯">${esc(t.title)}<div class="meta"><span class="${t.spent > t.est ? 'over' : ''}" title="已用 / 預估番茄">🍅 ${t.spent}/${t.est}</span>${(d => d ? ` · <span class="${d.cls}">${d.text}</span>` : '')(dueInfo(t.due, t.done))}</div></div>
         ${t.done ? '' : `<button class="focusBtn" data-act="focus">${t.id === currentId ? '專注中' : '專注'}</button>`}
         <button class="del" data-act="del" aria-label="刪除">×</button>
       </li>`).join('')
@@ -185,7 +232,8 @@
     e.preventDefault();
     const title = $('addInput').value.trim();
     if (!title) return;
-    tasks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, est, spent: 0, done: false });
+    tasks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, est, spent: 0, done: false, due: $('addDue').value || null });
+    $('addDue').value = ''; $('addDueClr').hidden = true;
     if (!current()) currentId = tasks[tasks.length - 1].id;  // 沒有綁定任務時，自動綁第一個新增的
     $('addInput').value = ''; est = 1; $('estVal').textContent = '🍅1';
     if (filter !== 'open') setFilter('open');
@@ -193,7 +241,15 @@
   };
   $('list').onclick = e => {
     const btn = e.target.closest('[data-act]'); if (!btn) return;
-    const t = tasks.find(x => x.id === btn.closest('li').dataset.id); if (!t) return;
+    const li = btn.closest('li'), t = tasks.find(x => x.id === li.dataset.id); if (!t) return;
+    const act = btn.dataset.act;
+    if (act === 'edit') { startEdit(t); return; }
+    if (act === 'eMinus' || act === 'ePlus') {
+      editEst = Math.min(10, Math.max(1, editEst + (act === 'ePlus' ? 1 : -1)));
+      li.querySelector('.eEst').textContent = '🍅' + editEst; return;
+    }
+    if (act === 'cancel') { editingId = null; renderList(); return; }
+    if (act === 'save') { saveEdit(li, t); return; }
     if (btn.dataset.act === 'toggle') {
       t.done = !t.done;
       if (t.done && t.id === currentId) currentId = (tasks.find(x => !x.done) || {}).id || null; // 自動換下一個
@@ -207,6 +263,84 @@
     }
     saveTasks(); renderList();
   };
+  function startEdit(t) {
+    editingId = t.id; editEst = t.est; renderList();
+    const inp = $('list').querySelector('li.editing .eName');
+    inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+  }
+  function saveEdit(li, t) {
+    const title = li.querySelector('.eName').value.trim();
+    if (title) { t.title = title; t.est = editEst; t.due = li.querySelector('.eDue').value || null; }
+    editingId = null; saveTasks(); renderList();
+  }
+  // 編輯中：Enter 儲存、Esc 取消
+  $('list').addEventListener('keydown', e => {
+    const li = e.target.closest('li.editing'); if (!li) return;
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveEdit(li, tasks.find(x => x.id === li.dataset.id)); }
+    if (e.key === 'Escape') { editingId = null; renderList(); }
+  });
+  $('addDue').oninput = () => { $('addDueClr').hidden = !$('addDue').value; };
+  $('addDueClr').onclick = () => { $('addDue').value = ''; $('addDueClr').hidden = true; };
+
+  // ===== 拖曳排序：用 Pointer Events，滑鼠與手機觸控都能用 =====
+  let drag = null;
+  $('list').addEventListener('pointerdown', e => {
+    const h = e.target.closest('.handle'); if (!h) return;
+    e.preventDefault();
+    const li = h.closest('li');
+    drag = { li, startY: e.clientY, pid: e.pointerId };
+    li.classList.add('dragging'); document.body.classList.add('sorting');
+  });
+  // 移動 DOM 會讓 pointer capture 失效，所以改在 window 上監聽
+  window.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const { li } = drag;
+    li.style.transform = `translateY(${e.clientY - drag.startY}px)`;
+    // 越過相鄰項目的中線就交換 DOM 位置，並把位移量校正回來
+    const prev = li.previousElementSibling, next = li.nextElementSibling;
+    const mid = el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+    if (next && e.clientY > mid(next)) {
+      const h = next.getBoundingClientRect().height; next.after(li); drag.startY += h;
+    } else if (prev && e.clientY < mid(prev)) {
+      const h = prev.getBoundingClientRect().height; prev.before(li); drag.startY -= h;
+    } else return;
+    li.style.transform = `translateY(${e.clientY - drag.startY}px)`;
+  });
+  function endDrag() {
+    if (!drag) return;
+    const order = [...$('list').querySelectorAll('li[data-id]')].map(x => x.dataset.id);
+    const byId = Object.fromEntries(tasks.map(t => [t.id, t]));
+    tasks = [...order.map(id => byId[id]), ...tasks.filter(t => !order.includes(t.id))];
+    drag = null; document.body.classList.remove('sorting');
+    saveTasks(); renderList();
+  }
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+
+  // ===== 備份 =====
+  $('exportBtn').onclick = () => {
+    const data = { app: 'pomodoro-todo', version: 1, exportedAt: new Date().toISOString(), tasks, settings };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = `todo-backup-${dayStr()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('importFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!Array.isArray(data.tasks)) throw new Error('格式不符');
+      const list = data.tasks.filter(t => t && t.id && typeof t.title === 'string').map(t => ({
+        id: String(t.id), title: t.title.slice(0, 120), est: Math.min(10, Math.max(1, +t.est || 1)),
+        spent: Math.max(0, +t.spent || 0), done: !!t.done, due: /^\d{4}-\d{2}-\d{2}$/.test(t.due) ? t.due : null }));
+      if (!confirm(`匯入 ${list.length} 項任務？目前清單會被取代。`)) return;
+      tasks = list; currentId = (tasks.find(t => !t.done) || {}).id || null;
+      if (data.settings) { settings = { ...DEFAULTS, ...data.settings }; store.set('pomo-settings', settings); loadForm(); setMode(mode); }
+      saveTasks(); renderList();
+    } catch (err) { alert('無法匯入：檔案不是有效的備份檔。'); }
+  };
+
   function setFilter(f) {
     filter = f;
     document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('on', b.dataset.filter === f));
