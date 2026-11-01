@@ -1,1 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>任務花園</title>
+<style>
+  :root {
+    --bg: #f6f3ea; --card: #fffdf8; --text: #2b2b2b; --muted: #7a7468; --line: #e7e0d0;
+    --accent: #3f8f5b; --accent-2: #e5533d; --sky1: #cfe8f7; --sky2: #f3f8ee; --soil: #8a6a4a; --grass: #8cc46a;
+    --chip: #efe9da; --shadow: 0 6px 24px rgba(60,50,30,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171a17; --card: #222622; --text: #ecece6; --muted: #a3a89d; --line: #343a33;
+      --accent: #6cc28a; --accent-2: #ff7a63; --sky1: #1d2b3d; --sky2: #23302a; --soil: #5a4632; --grass: #4e7d3e;
+      --chip: #2d332d; --shadow: 0 6px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    display: flex; justify-content: center; padding: 24px 16px 80px;
+  }
+  .app { width: 100%; max-width: 620px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .sub { color: var(--muted); font-size: .9rem; }
+  .card { background: var(--card); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
 
+  /* 花園 */
+  .garden { position: relative; border-radius: 14px; overflow: hidden; height: 170px;
+    background: linear-gradient(var(--sky1), var(--sky2)); }
+  .garden svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .garden .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: .9rem; text-align: center; padding: 0 20px 40px; }
+  .flower.new { transform-box: fill-box; transform-origin: 50% 100%; animation: grow .9s cubic-bezier(.3,1.5,.5,1) both; }
+  @keyframes grow { from { transform: scale(0); } to { transform: scale(1); } }
+  .flower .head { transform-box: fill-box; transform-origin: 50% 50%; animation: sway 4s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
+  .stats div { background: var(--chip); border-radius: 12px; padding: 8px 4px; }
+  .stats b { display: block; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .75rem; color: var(--muted); }
+
+  /* 專注列 */
+  .focus { display: none; align-items: center; gap: 12px; background: var(--accent-2); color: #fff;
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .focus.on { display: flex; }
+  .focus .ft { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .focus .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .focus button { background: rgba(255,255,255,.22); color: #fff; border: none; border-radius: 10px; padding: 8px 10px; cursor: pointer; font-size: .9rem; }
+
+  /* 輸入 */
+  .add { display: flex; gap: 8px; }
+  .add input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line);
+    background: var(--bg); color: var(--text); font-size: 1rem; }
+  .add input:focus { outline: none; border-color: var(--accent); }
+  .btn { border: none; border-radius: 12px; padding: 10px 14px; cursor: pointer; font-size: .95rem; font-weight: 600;
+    background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--chip); color: var(--text); }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: 8px; line-height: 1.6; }
+  .hint code { background: var(--chip); padding: 1px 5px; border-radius: 5px; }
+  .preview { margin-top: 8px; font-size: .85rem; min-height: 1.2em; color: var(--accent); }
+
+  /* 工具列 */
+  .toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .chip { border: 1.5px solid var(--line); background: transparent; color: var(--text); border-radius: 999px;
+    padding: 5px 11px; font-size: .85rem; cursor: pointer; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .spacer { flex: 1; }
+  .mood { display: flex; gap: 4px; align-items: center; font-size: .85rem; color: var(--muted); }
+
+  /* 任務 */
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.task { display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-bottom: 1px solid var(--line);
+    border-radius: 10px; transition: background .2s, opacity .3s; }
+  li.task:last-child { border-bottom: none; }
+  li.task.dragging { opacity: .4; }
+  li.task.over { background: var(--chip); }
+  li.task.picked { animation: pick 1.2s ease 2; }
+  @keyframes pick { 50% { background: color-mix(in srgb, var(--accent) 25%, transparent); } }
+  .check { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--accent);
+    background: transparent; cursor: pointer; display: grid; place-items: center; font-size: 14px; color: #fff; padding: 0; }
+  li.done .check { background: var(--accent); }
+  .body { flex: 1; min-width: 0; }
+  .title { word-break: break-word; outline: none; border-radius: 6px; }
+  .title[contenteditable="true"] { background: var(--chip); padding: 2px 4px; }
+  li.done .title { text-decoration: line-through; color: var(--muted); }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; font-size: .78rem; color: var(--muted); align-items: center; }
+  .tag { background: var(--chip); border-radius: 999px; padding: 1px 8px; }
+  .due.late { color: var(--accent-2); font-weight: 600; }
+  .tomato { letter-spacing: 1px; }
+  .tomato .ghost { opacity: .28; }
+  .acts { display: flex; gap: 2px; flex: none; }
+  .icon { background: transparent; border: none; cursor: pointer; font-size: 1.05rem; padding: 6px; border-radius: 8px; color: var(--text); }
+  .icon:hover { background: var(--chip); }
+  .handle { cursor: grab; color: var(--muted); user-select: none; padding: 0 2px; }
+  .empty-list { text-align: center; color: var(--muted); padding: 24px 0; }
+
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(120px);
+    background: #2b2b2b; color: #fff; padding: 10px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center;
+    transition: transform .3s, opacity .3s; opacity: 0; z-index: 10; max-width: calc(100% - 32px); font-size: .9rem; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast button { background: transparent; border: 1px solid #fff8; color: #fff; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  details { margin-top: 4px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: .9rem; }
+  .row input[type=number] { width: 64px; padding: 6px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--bg); color: var(--text); }
+  canvas#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+  @media (max-width: 480px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .acts .icon { padding: 4px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div class="app">
+  <header>
+    <h1>🌱 任務花園</h1>
+    <span class="sub" id="dateLabel"></span>
+  </header>
+
+  <div class="card">
+    <div class="garden" id="garden">
+      <svg id="gardenSvg" viewBox="0 0 600 170" preserveAspectRatio="xMidYMax meet"></svg>
+      <div class="empty" id="gardenEmpty">今天的花園還空空的。每完成一項任務，這裡就會長出一朵花 🌼</div>
+    </div>
+    <div class="stats">
+      <div><b id="sDone">0</b><span>今日完成</span></div>
+      <div><b id="sTomato">0</b><span>今日番茄 🍅</span></div>
+      <div><b id="sLeft">0</b><span>待辦剩餘</span></div>
+      <div><b id="sStreak">0</b><span>連續天數 🔥</span></div>
+    </div>
+  </div>
+
+  <div class="focus" id="focusBar">
+    <span class="ft" id="focusTime">25:00</span>
+    <span class="fn" id="focusName"></span>
+    <button id="focusPause">暫停</button>
+    <button id="focusStop">結束</button>
+  </div>
+
+  <div class="card">
+    <form class="add" id="addForm" autocomplete="off">
+      <input id="addInput" placeholder="例如：寫雷達專題報告 #專題 *3 @明天 !" maxlength="200">
+      <button class="btn" type="submit">種下</button>
+    </form>
+    <div class="preview" id="preview"></div>
+    <div class="hint">
+      快速語法：<code>#標籤</code>　<code>*3</code> 預估 3 顆番茄　<code>@今天</code> <code>@明天</code> <code>@週五</code> <code>@11/20</code> 截止　<code>!</code> 重要<br>
+      小技巧：按 ▶ 直接對該任務開一顆番茄；按「🎲 幫我選」讓骰子依你現在的能量挑一件事。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <button class="chip on" data-filter="open">待辦</button>
+      <button class="chip" data-filter="done">已完成</button>
+      <button class="chip" data-filter="all">全部</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="diceBtn" type="button">🎲 幫我選</button>
+    </div>
+    <div class="toolbar" id="tagBar"></div>
+    <div class="toolbar mood">
+      現在能量：
+      <button class="chip" data-mood="low">🌙 低</button>
+      <button class="chip on" data-mood="mid">🌤 普通</button>
+      <button class="chip" data-mood="high">⚡ 滿</button>
+    </div>
+    <ul id="list"></ul>
+    <details>
+      <summary>⚙️ 設定與資料</summary>
+      <div class="row">一顆番茄 <input type="number" id="focusMin" min="1" max="90"> 分鐘</div>
+      <div class="row">
+        <button class="btn ghost" id="exportBtn" type="button">匯出 JSON</button>
+        <label class="btn ghost" style="cursor:pointer">匯入 JSON<input type="file" id="importFile" accept="application/json" hidden></label>
+        <button class="btn ghost" id="clearDoneBtn" type="button">清除已完成</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastBtn">復原</button></div>
+
+<script>
+(() => {
+  // ===== 儲存（localStorage 在無痕或被封鎖時可能丟錯，全部包 try/catch）=====
+  const store = {
+    get(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const dayKey = (d = new Date()) => d.toLocaleDateString('sv'); // YYYY-MM-DD（本地時區）
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  let tasks = store.get('garden-tasks', []);
+  let settings = { focusMin: 25, ...store.get('garden-settings', {}) };
+  let filter = 'open', tagFilter = null, mood = 'mid';
+  const save = () => store.set('garden-tasks', tasks);
+
+  const $ = id => document.getElementById(id);
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ===== 快速語法解析 =====
+  const WEEK = { '日': 0, '天': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 };
+  function parseDue(word) {
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    if (word === '今天') return dayKey(d);
+    if (word === '明天') { d.setDate(d.getDate() + 1); return dayKey(d); }
+    if (word === '後天') { d.setDate(d.getDate() + 2); return dayKey(d); }
+    let m = word.match(/^(?:週|周|星期|禮拜)([日天一二三四五六])$/);
+    if (m) { const diff = (WEEK[m[1]] - d.getDay() + 7) % 7 || 7; d.setDate(d.getDate() + diff); return dayKey(d); }
+    m = word.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) {
+      const t = new Date(d.getFullYear(), +m[1] - 1, +m[2]);
+      if (t < d) t.setFullYear(t.getFullYear() + 1); // 已過的日期視為明年
+      return isNaN(t) ? null : dayKey(t);
+    }
+    return null;
+  }
+  function parse(raw) {
+    const out = { tags: [], est: 1, due: null, star: false };
+    let text = raw.replace(/#([^\s#@*!]+)/g, (_, t) => { out.tags.push(t); return ''; });
+    text = text.replace(/\*(\d{1,2})/g, (_, n) => { out.est = Math.min(12, Math.max(1, +n)); return ''; });
+    text = text.replace(/@(\S+)/g, (all, w) => { const d = parseDue(w); if (d) { out.due = d; return ''; } return all; });
+    text = text.replace(/(^|\s)!(?=\s|$)/g, () => { out.star = true; return ' '; });
+    out.title = text.replace(/\s+/g, ' ').trim();
+    return out;
+  }
+  function dueLabel(due) {
+    if (!due) return '';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((new Date(due + 'T00:00:00') - today) / 864e5);
+    if (diff < 0) return `逾期 ${-diff} 天`;
+    if (diff === 0) return '今天';
+    if (diff === 1) return '明天';
+    if (diff < 7) return `${diff} 天後`;
+    return due.slice(5).replace('-', '/');
+  }
+
+  // ===== 花朵：依標籤決定花色，依番茄數決定高度 =====
+  const PALETTE = [['#ff7aa2', '#ffd166'], ['#f9c74f', '#f3722c'], ['#9b8cff', '#ffe066'], ['#5ec8f2', '#ffffff'],
+                   ['#ff8c42', '#6a4c93'], ['#ef476f', '#ffd6e0'], ['#43aa8b', '#f9f871'], ['#ffffff', '#f4a261']];
+  const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const seen = new Set(); // 已經長出來的花不再重播生長動畫
+  function flowerSVG(t, x, i) {
+    const [petal, center] = PALETTE[hash(t.tags[0] || t.title) % PALETTE.length];
+    const h = 34 + Math.min(t.spent || t.est, 6) * 12;     // 越花心力的任務長越高
+    const r = 9 + Math.min(t.est, 4) * 1.5;
+    const ground = 150, top = ground - h;
+    const petals = 5 + (hash(t.id) % 3);
+    let ps = '';
+    for (let k = 0; k < petals; k++) {
+      const a = (k / petals) * Math.PI * 2;
+      ps += `<ellipse cx="${(x + Math.cos(a) * r).toFixed(1)}" cy="${(top + Math.sin(a) * r).toFixed(1)}" rx="${r * .75}" ry="${r * .5}"
+              transform="rotate(${(a * 180 / Math.PI).toFixed(0)} ${(x + Math.cos(a) * r).toFixed(1)} ${(top + Math.sin(a) * r).toFixed(1)})" fill="${petal}"/>`;
+    }
+    const leafY = ground - h * .45, dir = i % 2 ? 1 : -1;
+    const isNew = !seen.has(t.id); seen.add(t.id);
+    return `<g class="flower${isNew ? ' new' : ''}" style="animation-delay:${isNew && seen.size > 1 ? 0 : i * 60}ms"><title>${esc(t.title)}</title>
+      <path d="M${x} ${ground} Q ${x + dir * 6} ${ground - h / 2} ${x} ${top}" stroke="#4f8a3c" stroke-width="3" fill="none"/>
+      <ellipse cx="${x + dir * 9}" cy="${leafY}" rx="9" ry="4" fill="#5fa04a" transform="rotate(${dir * -30} ${x + dir * 9} ${leafY})"/>
+      <g class="head" style="animation-delay:-${(hash(t.id) % 40) / 10}s">${ps}<circle cx="${x}" cy="${top}" r="${r * .55}" fill="${center}"/></g></g>`;
+  }
+  function renderGarden() {
+    const today = dayKey();
+    const bloomed = tasks.filter(t => t.done && t.doneAt === today);
+    $('gardenEmpty').style.display = bloomed.length ? 'none' : 'flex';
+    // viewBox 寬度跟著容器比例走，手機上花才不會被縮得太小
+    const g = $('garden'), W = Math.max(240, Math.round(g.clientWidth * 170 / (g.clientHeight || 170)));
+    $('gardenSvg').setAttribute('viewBox', `0 0 ${W} 170`);
+    const n = bloomed.length;
+    let flowers = '';
+    bloomed.forEach((t, i) => {
+      // 平均分布，加一點固定的隨機偏移讓花園看起來自然
+      const x = n === 1 ? W / 2 : 30 + (W - 60) * (i / Math.max(1, n - 1)) + ((hash(t.id) % 13) - 6);
+      flowers += flowerSVG(t, Math.round(x), i);
+    });
+    $('gardenSvg').innerHTML = `
+      <circle cx="${W - 50}" cy="36" r="18" fill="#ffd166" opacity=".85"/>
+      <path d="M0 150 Q ${W / 4} 138 ${W / 2} 148 T ${W} 146 V170 H0Z" fill="var(--grass)"/>
+      <rect x="0" y="160" width="${W}" height="10" fill="var(--soil)" opacity=".5"/>${flowers}`;
+  }
+
+  // ===== 統計與連續天數 =====
+  function streak() {
+    const days = new Set(tasks.filter(t => t.doneAt).map(t => t.doneAt));
+    const d = new Date(); let s = 0;
+    if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1); // 今天還沒完成也不算斷，從昨天往回數
+    while (days.has(dayKey(d))) { s++; d.setDate(d.getDate() - 1); }
+    return s;
+  }
+  function renderStats() {
+    const today = dayKey();
+    $('sDone').textContent = tasks.filter(t => t.doneAt === today).length;
+    $('sTomato').textContent = store.get('pomo-count-' + today, 0);
+    $('sLeft').textContent = tasks.filter(t => !t.done).length;
+    $('sStreak').textContent = streak();
+  }
+
+  // ===== 清單 =====
+  function renderTags() {
+    const all = [...new Set(tasks.flatMap(t => t.tags))];
+    if (tagFilter && !all.includes(tagFilter)) tagFilter = null;
+    $('tagBar').style.display = all.length ? 'flex' : 'none';
+    $('tagBar').innerHTML = all.map(t =>
+      `<button class="chip ${t === tagFilter ? 'on' : ''}" data-tag="${esc(t)}">#${esc(t)}</button>`).join('');
+  }
+  function visible() {
+    return tasks.filter(t =>
+      (filter === 'all' || (filter === 'done') === t.done) && (!tagFilter || t.tags.includes(tagFilter)));
+  }
+  function tomatoes(t) {
+    const n = Math.max(t.est, t.spent);
+    let s = '';
+    for (let i = 0; i < n; i++) s += i < t.spent ? '🍅' : '<span class="ghost">🍅</span>';
+    return `<span class="tomato" title="已用 ${t.spent} / 預估 ${t.est} 顆番茄">${s}</span>`;
+  }
+  function renderList() {
+    const items = visible();
+    if (!items.length) {
+      $('list').innerHTML = `<li class="empty-list">${filter === 'done' ? '還沒有完成的任務，加油！' : '沒有待辦事項 🎉 去花園看看吧'}</li>`;
+      return;
+    }
+    $('list').innerHTML = items.map(t => {
+      const dl = dueLabel(t.due), late = t.due && !t.done && t.due < dayKey();
+      return `<li class="task ${t.done ? 'done' : ''}" data-id="${t.id}" draggable="true">
+        <span class="handle" title="拖曳排序">⋮⋮</span>
+        <button class="check" data-act="toggle" aria-label="完成">${t.done ? '✓' : ''}</button>
+        <div class="body">
+          <div class="title" data-act="edit">${t.star ? '⭐ ' : ''}${esc(t.title)}</div>
+          <div class="meta">${tomatoes(t)}
+            ${dl ? `<span class="due ${late ? 'late' : ''}">⏰ ${dl}</span>` : ''}
+            ${t.tags.map(g => `<span class="tag">#${esc(g)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="acts">
+          ${t.done ? '' : '<button class="icon" data-act="focus" title="對這個任務開一顆番茄">▶</button>'}
+          <button class="icon" data-act="del" title="刪除">🗑</button>
+        </div></li>`;
+    }).join('');
+  }
+  function render() { renderTags(); renderList(); renderGarden(); renderStats(); }
+
+  // ===== 新增 =====
+  $('addInput').addEventListener('input', e => {
+    const p = parse(e.target.value);
+    if (!e.target.value.trim()) { $('preview').textContent = ''; return; }
+    const bits = [];
+    if (p.star) bits.push('⭐ 重要');
+    bits.push('🍅×' + p.est);
+    if (p.due) bits.push('⏰ ' + dueLabel(p.due));
+    p.tags.forEach(t => bits.push('#' + t));
+    $('preview').textContent = `→ 「${p.title || '…'}」 ${bits.join('　')}`;
+  });
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const p = parse($('addInput').value);
+    if (!p.title) return;
+    const t = { id: uid(), title: p.title, tags: p.tags, est: p.est, spent: 0, due: p.due, star: p.star,
+                done: false, doneAt: null, created: Date.now() };
+    tasks = p.star ? [t, ...tasks] : [...tasks, t];  // 重要的放最上面
+    save(); $('addInput').value = ''; $('preview').textContent = '';
+    if (filter === 'done') setFilter('open'); else render();
+  });
+
+  // ===== 清單操作（事件委派）=====
+  let undo = null, toastTimer;
+  function toast(msg, onUndo) {
+    $('toastMsg').textContent = msg;
+    $('toastBtn').style.display = onUndo ? '' : 'none';
+    undo = onUndo;
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 4000);
+  }
+  $('toastBtn').onclick = () => { if (undo) undo(); undo = null; $('toast').classList.remove('show'); };
+
+  const find = id => tasks.find(t => t.id === id);
+  $('list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const li = btn.closest('li.task'), t = find(li.dataset.id); if (!t) return;
+    const act = btn.dataset.act;
+    if (act === 'toggle') {
+      t.done = !t.done; t.doneAt = t.done ? dayKey() : null;
+      save(); render();
+      if (t.done) { confetti(btn); toast(`🌸 「${t.title}」開花了！`); }
+    } else if (act === 'del') {
+      const idx = tasks.indexOf(t); tasks.splice(idx, 1); save(); render();
+      toast(`已刪除「${t.title}」`, () => { tasks.splice(idx, 0, t); save(); render(); });
+    } else if (act === 'focus') {
+      startFocus(t);
+    }
+  });
+  // 雙擊標題直接編輯（Enter 儲存、Esc 取消）；可在編輯時加 #標籤 *數字 等語法
+  $('list').addEventListener('dblclick', e => {
+    const el = e.target.closest('.title'); if (!el) return;
+    const t = find(el.closest('li').dataset.id);
+    el.contentEditable = 'true'; el.textContent = t.title; el.focus();
+    document.getSelection().selectAllChildren(el);
+    const finish = ok => {
+      el.removeEventListener('blur', onBlur); el.removeEventListener('keydown', onKey);
+      if (ok) {
+        const p = parse(el.textContent);
+        if (p.title) {
+          t.title = p.title;
+          if (p.tags.length) t.tags = [...new Set([...t.tags, ...p.tags])];
+          if (/\*\d/.test(el.textContent)) t.est = p.est;
+          if (p.due) t.due = p.due;
+          if (p.star) t.star = true;
+          save();
+        }
+      }
+      render();
+    };
+    const onBlur = () => finish(true);
+    const onKey = ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      if (ev.key === 'Escape') finish(false);
+    };
+    el.addEventListener('blur', onBlur); el.addEventListener('keydown', onKey);
+  });
+
+  // ===== 拖曳排序（桌機滑鼠）=====
+  let dragId = null;
+  $('list').addEventListener('dragstart', e => {
+    const li = e.target.closest('li.task'); if (!li) return;
+    dragId = li.dataset.id; li.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+  });
+  $('list').addEventListener('dragover', e => {
+    const li = e.target.closest('li.task'); if (!li || !dragId) return;
+    e.preventDefault();
+    document.querySelectorAll('li.over').forEach(x => x.classList.remove('over')); li.classList.add('over');
+  });
+  $('list').addEventListener('drop', e => {
+    const li = e.target.closest('li.task'); if (!li || !dragId) return;
+    e.preventDefault();
+    // 往下拖放到目標之後、往上拖放到目標之前
+    const from = tasks.findIndex(t => t.id === dragId), to = tasks.findIndex(t => t.id === li.dataset.id);
+    if (from === to) return;
+    const [moved] = tasks.splice(from, 1);
+    tasks.splice(to, 0, moved);
+    save(); render();
+  });
+  $('list').addEventListener('dragend', () => { dragId = null; render(); });
+
+  // ===== 篩選 =====
+  function setFilter(f) {
+    filter = f;
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('on', b.dataset.filter === f));
+    render();
+  }
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => setFilter(b.dataset.filter));
+  $('tagBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-tag]'); if (!b) return;
+    tagFilter = tagFilter === b.dataset.tag ? null : b.dataset.tag; render();
+  });
+  document.querySelectorAll('[data-mood]').forEach(b => b.onclick = () => {
+    mood = b.dataset.mood;
+    document.querySelectorAll('[data-mood]').forEach(x => x.classList.toggle('on', x === b));
+  });
+
+  // ===== 🎲 幫我選：依能量加權 =====
+  // 低能量偏好小任務（番茄少）、滿能量偏好大任務；重要、快到期的權重加倍
+  $('diceBtn').onclick = () => {
+    const open = tasks.filter(t => !t.done && (!tagFilter || t.tags.includes(tagFilter)));
+    if (!open.length) { toast('沒有待辦可以選，今天真棒 ✨'); return; }
+    const today = dayKey();
+    const w = open.map(t => {
+      const size = t.est - t.spent;
+      let x = mood === 'low' ? 1 / Math.max(1, size) : mood === 'high' ? Math.max(1, size) : 1;
+      if (t.star) x *= 2;
+      if (t.due && t.due <= today) x *= 3;
+      return x;
+    });
+    let r = Math.random() * w.reduce((a, b) => a + b, 0), pick = open[0];
+    for (let i = 0; i < open.length; i++) { r -= w[i]; if (r <= 0) { pick = open[i]; break; } }
+    if (filter === 'done') setFilter('open');
+    const li = document.querySelector(`li[data-id="${pick.id}"]`);
+    if (li) { li.classList.remove('picked'); void li.offsetWidth; li.classList.add('picked'); li.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    toast(`🎲 就做「${pick.title}」吧！`);
+  };
+
+  // ===== 任務專注計時（每顆番茄完成時：任務 +1、今日番茄數 +1）=====
+  // 「今日番茄」與番茄鐘網頁共用 pomo-count-日期 這個 key，部署在同一網域時兩邊數字會同步
+  let focusTask = null, endTime = 0, remain = 0, tickId = null;
+  const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  function startFocus(t) {
+    focusTask = t; remain = settings.focusMin * 60; resume();
+    $('focusBar').classList.add('on'); $('focusName').textContent = '專注中：' + t.title;
+    beep(1);
+  }
+  function resume() {
+    endTime = Date.now() + remain * 1000; clearInterval(tickId); tickId = setInterval(tick, 250); tick();
+    $('focusPause').textContent = '暫停';
+  }
+  function pause() { clearInterval(tickId); tickId = null; $('focusPause').textContent = '繼續'; }
+  function stopFocus() { clearInterval(tickId); tickId = null; focusTask = null; $('focusBar').classList.remove('on'); document.title = '任務花園'; }
+  function tick() {
+    remain = Math.max(0, Math.round((endTime - Date.now()) / 1000)); // 用時間戳計算，背景分頁也不會跑慢
+    $('focusTime').textContent = fmt(remain);
+    document.title = `${fmt(remain)} · ${focusTask.title}`;
+    if (remain <= 0) {
+      const t = find(focusTask.id);
+      if (t) { t.spent++; save(); }
+      const k = 'pomo-count-' + dayKey(); store.set(k, store.get(k, 0) + 1);
+      beep(3); stopFocus(); render();
+      toast(`🍅 完成一顆番茄！「${t ? t.title : ''}」進度 ${t ? t.spent : '?'} / ${t ? t.est : '?'}`);
+      try { if (Notification.permission === 'granted') new Notification('🍅 番茄完成', { body: t ? t.title : '' }); } catch {}
+    }
+  }
+  $('focusPause').onclick = () => tickId ? pause() : resume();
+  $('focusStop').onclick = stopFocus;
+
+  let actx;
+  function beep(times) {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      for (let i = 0; i < times; i++) {
+        const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + i * .35;
+        o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+        g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(.25, t0 + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, t0 + .25); o.start(t0); o.stop(t0 + .3);
+      }
+    } catch {}
+  }
+
+  // ===== 彩帶 =====
+  const cv = $('confetti'), cx = cv.getContext('2d');
+  let parts = [], animId = null;
+  function confetti(from) {
+    cv.width = innerWidth; cv.height = innerHeight;
+    const r = from.getBoundingClientRect(), colors = ['#ff7aa2', '#ffd166', '#6cc28a', '#5ec8f2', '#9b8cff'];
+    for (let i = 0; i < 60; i++) parts.push({
+      x: r.left + r.width / 2, y: r.top + r.height / 2, vx: (Math.random() - .5) * 9, vy: -Math.random() * 9 - 3,
+      s: 4 + Math.random() * 4, c: colors[i % colors.length], life: 60 + Math.random() * 30, rot: Math.random() * 6 });
+    if (!animId) animId = requestAnimationFrame(step);
+  }
+  function step() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    parts = parts.filter(p => p.life-- > 0);
+    parts.forEach(p => {
+      p.vy += .3; p.x += p.vx; p.y += p.vy; p.rot += .2;
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot); cx.fillStyle = p.c; cx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * .6); cx.restore();
+    });
+    animId = parts.length ? requestAnimationFrame(step) : (cx.clearRect(0, 0, cv.width, cv.height), null);
+  }
+
+  // ===== 設定、匯出匯入 =====
+  $('focusMin').value = settings.focusMin;
+  $('focusMin').onchange = e => {
+    settings.focusMin = Math.min(90, Math.max(1, +e.target.value || 25));
+    e.target.value = settings.focusMin; store.set('garden-settings', settings);
+  };
+  $('exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify({ version: 1, tasks }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `garden-tasks-${dayKey()}.json`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('importFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!Array.isArray(data.tasks)) throw 0;
+      tasks = data.tasks.filter(t => t && t.id && typeof t.title === 'string')
+        .map(t => ({ tags: [], est: 1, spent: 0, due: null, star: false, done: false, doneAt: null, ...t }));
+      save(); render(); toast(`已匯入 ${tasks.length} 項任務`);
+    } catch { toast('檔案格式不正確'); }
+    e.target.value = '';
+  };
+  $('clearDoneBtn').onclick = () => {
+    const old = tasks; tasks = tasks.filter(t => !t.done); save(); render();
+    toast(`已清除 ${old.length - tasks.length} 項已完成`, () => { tasks = old; save(); render(); });
+  };
+
+  // ===== 啟動 =====
+  $('dateLabel').textContent = new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' });
+  if (!tasks.length && !store.get('garden-seeded', false)) {
+    // 第一次開啟放幾個範例，讓使用者看懂語法
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    tasks = [
+      { id: uid(), title: '試著把這項打勾，看花園長出花', tags: ['新手'], est: 1, spent: 0, due: dayKey(), star: true, done: false, doneAt: null, created: Date.now() },
+      { id: uid(), title: '按 ▶ 對這件事專注一顆番茄', tags: ['新手'], est: 2, spent: 0, due: dayKey(d), star: false, done: false, doneAt: null, created: Date.now() },
+      { id: uid(), title: '雙擊這行文字可以編輯', tags: [], est: 1, spent: 0, due: null, star: false, done: false, doneAt: null, created: Date.now() }
+    ];
+    save(); store.set('garden-seeded', true);
+  }
+  render();
+  // 跨日時自動刷新花園（例如頁面開著過午夜）
+  let resizeT; addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(renderGarden, 150); });
+  let lastDay = dayKey();
+  setInterval(() => { if (dayKey() !== lastDay) { lastDay = dayKey(); render(); } }, 60000);
+  // 若使用者之前在番茄鐘允許過通知就沿用；不主動跳權限詢問
+})();
+</script>
+</body>
+</html>
