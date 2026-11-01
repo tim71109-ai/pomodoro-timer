@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>番茄鐘</title>
+<style>
+  :root {
+    --bg: #fdf6f0; --card: #ffffff; --text: #2b2b2b; --muted: #777;
+    --accent: #e5533d; --ring-bg: #f1e3da; --btn-text: #fff;
+  }
+  body.mode-short { --bg: #eef7f2; --accent: #2e9e6a; --ring-bg: #d8ece1; }
+  body.mode-long  { --bg: #eef3fa; --accent: #3a6fc4; --ring-bg: #d9e4f4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1d1a19; --card: #2a2625; --text: #eee; --muted: #aaa; --ring-bg: #3a3331; }
+    body.mode-short { --bg: #17201c; --ring-bg: #2a3a32; }
+    body.mode-long  { --bg: #171c24; --ring-bg: #2a3446; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    display: flex; justify-content: center; align-items: flex-start; padding: 32px 16px;
+    transition: background .4s;
+  }
+  .app { width: 100%; max-width: 420px; }
+  h1 { text-align: center; font-size: 1.5rem; margin: 0 0 16px; }
+  .card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 6px 24px rgba(0,0,0,.08); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs button {
+    flex: 1; padding: 8px 4px; border: 2px solid var(--ring-bg); background: transparent;
+    color: var(--text); border-radius: 999px; cursor: pointer; font-size: .9rem;
+  }
+  .tabs button.active { background: var(--accent); border-color: var(--accent); color: var(--btn-text); }
+  .ring-wrap { position: relative; width: 260px; height: 260px; margin: 0 auto; max-width: 100%; }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--ring-bg); stroke-width: 12; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .3s linear, stroke .4s; }
+  .time {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .time .digits { font-size: 3.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .time .label { color: var(--muted); font-size: .95rem; }
+  .controls { display: flex; gap: 12px; justify-content: center; margin: 24px 0 8px; }
+  .controls button {
+    padding: 12px 20px; border-radius: 12px; border: none; cursor: pointer; font-size: 1rem; font-weight: 600;
+  }
+  #startBtn { background: var(--accent); color: var(--btn-text); min-width: 120px; }
+  .secondary { background: var(--ring-bg); color: var(--text); }
+  .stats { text-align: center; color: var(--muted); margin-top: 12px; font-size: .95rem; }
+  .stats strong { color: var(--text); }
+  details { margin-top: 20px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .settings { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; align-items: center; margin-top: 12px; }
+  .settings input[type=number] { width: 80px; padding: 6px; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
+  .settings .full { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .settings .full button { flex: 1; padding: 8px; border-radius: 8px; border: none; cursor: pointer; }
+  .save { background: var(--accent); color: var(--btn-text); }
+</style>
+</head>
+<body class="mode-work">
+<div class="app">
+  <h1>🍅 番茄鐘</h1>
+  <div class="card">
+    <div class="tabs" role="tablist">
+      <button data-mode="work" class="active">專注</button>
+      <button data-mode="short">短休息</button>
+      <button data-mode="long">長休息</button>
+    </div>
+
+    <div class="ring-wrap">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+        <circle class="ring-fg" id="ring" cx="60" cy="60" r="52"></circle>
+      </svg>
+      <div class="time">
+        <div class="digits" id="digits">25:00</div>
+        <div class="label" id="modeLabel">專注時間</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn">開始</button>
+      <button id="resetBtn" class="secondary">重設</button>
+      <button id="skipBtn" class="secondary" title="跳到下一階段">跳過</button>
+    </div>
+
+    <div class="stats">
+      今日完成番茄數：<strong id="todayCount">0</strong>　｜　
+      距離長休息還有 <strong id="untilLong">4</strong> 個
+    </div>
+
+    <details>
+      <summary>⚙️ 設定</summary>
+      <div class="settings">
+        <label for="workMin">專注時長（分鐘）</label><input type="number" id="workMin" min="1" max="180">
+        <label for="shortMin">短休息（分鐘）</label><input type="number" id="shortMin" min="1" max="60">
+        <label for="longMin">長休息（分鐘）</label><input type="number" id="longMin" min="1" max="120">
+        <label for="interval">幾個番茄後長休息</label><input type="number" id="interval" min="1" max="12">
+        <label for="autoStart">階段結束後自動開始下一段</label><input type="checkbox" id="autoStart">
+        <label for="sound">時間到播放提示音</label><input type="checkbox" id="sound">
+        <div class="full">
+          <button class="save" id="saveBtn">儲存設定</button>
+          <button class="secondary" id="testSound">試聽提示音</button>
+          <button class="secondary" id="clearCount">清除今日次數</button>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ===== 設定與狀態 =====
+  const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: false, sound: true };
+  const LABELS = { work: '專注時間', short: '短休息', long: '長休息' };
+
+  // localStorage 在無痕模式或被封鎖時可能丟錯，所以全部包 try/catch
+  const store = {
+    get(key, fallback) {
+      try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+      catch { return fallback; }
+    },
+    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+  };
+
+  let settings = { ...DEFAULTS, ...store.get('pomo-settings', {}) };
+  let mode = 'work';
+  let totalSec = settings.work * 60;
+  let remainingSec = totalSec;
+  let endTime = null;      // 計時中時記錄「預計結束的時間戳」
+  let tickId = null;
+  let cycleCount = 0;      // 本輪已完成幾個番茄（用來判斷長休息）
+
+  const todayKey = () => 'pomo-count-' + new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+  let todayCount = store.get(todayKey(), 0);
+
+  // ===== DOM =====
+  const $ = id => document.getElementById(id);
+  const digits = $('digits'), modeLabel = $('modeLabel'), ring = $('ring');
+  const startBtn = $('startBtn');
+  const CIRC = 2 * Math.PI * 52;
+  ring.style.strokeDasharray = CIRC;
+
+  // ===== 畫面更新 =====
+  function fmt(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function render() {
+    digits.textContent = fmt(remainingSec);
+    modeLabel.textContent = LABELS[mode];
+    ring.style.strokeDashoffset = CIRC * (1 - remainingSec / totalSec);
+    document.title = `${fmt(remainingSec)} · ${LABELS[mode]} | 番茄鐘`;
+    startBtn.textContent = tickId ? '暫停' : (remainingSec < totalSec ? '繼續' : '開始');
+    $('todayCount').textContent = todayCount;
+    $('untilLong').textContent = settings.interval - (cycleCount % settings.interval);
+    document.body.className = 'mode-' + mode;
+    document.querySelectorAll('.tabs button').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === mode));
+  }
+
+  // ===== 計時核心 =====
+  // 用「結束時間戳 - 現在時間」算剩餘秒數，而不是每秒減 1，
+  // 這樣分頁切到背景、瀏覽器降低 setInterval 頻率時也不會跑慢。
+  function tick() {
+    remainingSec = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+    render();
+    if (remainingSec <= 0) finish();
+  }
+  function start() {
+    if (tickId) return;
+    unlockAudio();
+    endTime = Date.now() + remainingSec * 1000;
+    tickId = setInterval(tick, 250);
+    render();
+  }
+  function pause() {
+    clearInterval(tickId); tickId = null;
+    render();
+  }
+  function setMode(newMode) {
+    pause();
+    mode = newMode;
+    totalSec = settings[mode] * 60;
+    remainingSec = totalSec;
+    render();
+  }
+  // completed = true 表示專注階段是「正常完成」；按「跳過」則不算完成，一律進短休息
+  function nextMode(completed = false) {
+    if (mode === 'work') return (completed && cycleCount % settings.interval === 0) ? 'long' : 'short';
+    return 'work';
+  }
+  function finish() {
+    pause();
+    if (mode === 'work') {
+      cycleCount++;
+      todayCount = store.get(todayKey(), 0) + 1;   // 重讀一次，處理跨日
+      store.set(todayKey(), todayCount);
+    }
+    const finished = LABELS[mode];
+    const next = nextMode(true);
+    if (settings.sound) beep();
+    notify(`${finished}結束！`, `接下來：${LABELS[next]}`);
+    setMode(next);
+    if (settings.autoStart) start();
+  }
+
+  // ===== 提示音（Web Audio API 產生，不需音檔）=====
+  let audioCtx = null;
+  function unlockAudio() {
+    // 瀏覽器規定音訊必須在使用者點擊後才能啟用，所以在按「開始」時先建立
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch {}
+  }
+  function beep() {
+    unlockAudio();
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    [0, 0.35, 0.7].forEach(offset => {           // 嗶 嗶 嗶 三聲
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.3);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.32);
+    });
+  }
+
+  // ===== 桌面通知（使用者允許才會出現，拒絕也不影響功能）=====
+  function notify(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      try { new Notification(title, { body }); } catch {}
+    }
+  }
+  function askNotifyPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+
+  // ===== 設定面板 =====
+  function loadSettingsToForm() {
+    $('workMin').value = settings.work;
+    $('shortMin').value = settings.short;
+    $('longMin').value = settings.long;
+    $('interval').value = settings.interval;
+    $('autoStart').checked = settings.autoStart;
+    $('sound').checked = settings.sound;
+  }
+  function clampInt(v, min, max, fallback) {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  }
+  $('saveBtn').addEventListener('click', () => {
+    settings = {
+      work: clampInt($('workMin').value, 1, 180, DEFAULTS.work),
+      short: clampInt($('shortMin').value, 1, 60, DEFAULTS.short),
+      long: clampInt($('longMin').value, 1, 120, DEFAULTS.long),
+      interval: clampInt($('interval').value, 1, 12, DEFAULTS.interval),
+      autoStart: $('autoStart').checked,
+      sound: $('sound').checked
+    };
+    store.set('pomo-settings', settings);
+    loadSettingsToForm();
+    setMode(mode);   // 套用新時長並重設目前階段
+  });
+  $('testSound').addEventListener('click', beep);
+  $('clearCount').addEventListener('click', () => {
+    if (!confirm('確定要清除今日完成次數嗎？')) return;
+    todayCount = 0; cycleCount = 0;
+    store.set(todayKey(), 0);
+    render();
+  });
+
+  // ===== 按鈕事件 =====
+  startBtn.addEventListener('click', () => {
+    askNotifyPermission();
+    tickId ? pause() : start();
+  });
+  $('resetBtn').addEventListener('click', () => setMode(mode));
+  $('skipBtn').addEventListener('click', () => setMode(nextMode()));
+  document.querySelectorAll('.tabs button').forEach(b =>
+    b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  // 鍵盤快捷鍵：空白鍵 開始/暫停，R 重設
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); startBtn.click(); }
+    if (e.key === 'r' || e.key === 'R') $('resetBtn').click();
+  });
+
+  // 切回分頁時立即校正一次畫面
+  document.addEventListener('visibilitychange', () => { if (tickId) tick(); });
+
+  loadSettingsToForm();
+  render();
+})();
+</script>
+</body>
+</html>
