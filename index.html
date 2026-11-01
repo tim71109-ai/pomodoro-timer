@@ -3,170 +3,251 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>番茄鐘</title>
+<title>番茄待辦</title>
 <style>
   :root {
-    --bg: #fdf6f0; --card: #ffffff; --text: #2b2b2b; --muted: #777;
-    --accent: #e5533d; --ring-bg: #f1e3da; --btn-text: #fff;
+    --bg: #f7f5f2; --card: #ffffff; --text: #262626; --muted: #8a8a8a; --line: #ececec;
+    --accent: #e5533d; --soft: #fbe9e5;
   }
-  body.mode-short { --bg: #eef7f2; --accent: #2e9e6a; --ring-bg: #d8ece1; }
-  body.mode-long  { --bg: #eef3fa; --accent: #3a6fc4; --ring-bg: #d9e4f4; }
+  body.mode-short { --accent: #2e9e6a; --soft: #e3f3ea; }
+  body.mode-long  { --accent: #3a6fc4; --soft: #e3ebf8; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #1d1a19; --card: #2a2625; --text: #eee; --muted: #aaa; --ring-bg: #3a3331; }
-    body.mode-short { --bg: #17201c; --ring-bg: #2a3a32; }
-    body.mode-long  { --bg: #171c24; --ring-bg: #2a3446; }
+    :root { --bg: #161616; --card: #222; --text: #eee; --muted: #9a9a9a; --line: #333; --soft: #3a2723; }
+    body.mode-short { --soft: #1f3329; }
+    body.mode-long  { --soft: #1f2a3d; }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
-    display: flex; justify-content: center; align-items: flex-start; padding: 32px 16px;
-    transition: background .4s;
+    padding: 24px 16px 48px;
   }
-  .app { width: 100%; max-width: 420px; }
-  h1 { text-align: center; font-size: 1.5rem; margin: 0 0 16px; }
-  .card { background: var(--card); border-radius: 20px; padding: 24px; box-shadow: 0 6px 24px rgba(0,0,0,.08); }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
-  .tabs button {
-    flex: 1; padding: 8px 4px; border: 2px solid var(--ring-bg); background: transparent;
-    color: var(--text); border-radius: 999px; cursor: pointer; font-size: .9rem;
+  .app { max-width: 460px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 880px) {
+    .app { max-width: 880px; grid-template-columns: 380px minmax(0, 1fr); align-items: start; }
+    .timer { position: sticky; top: 24px; }
   }
-  .tabs button.active { background: var(--accent); border-color: var(--accent); color: var(--btn-text); }
-  .ring-wrap { position: relative; width: 260px; height: 260px; margin: 0 auto; max-width: 100%; }
+  .card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  button { font: inherit; cursor: pointer; }
+
+  /* 番茄鐘 */
+  .tabs { display: flex; background: var(--bg); border-radius: 10px; padding: 4px; gap: 4px; }
+  .tabs button { flex: 1; border: none; background: transparent; color: var(--muted); padding: 8px 0; border-radius: 8px; font-size: .9rem; }
+  .tabs button.active { background: var(--card); color: var(--accent); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .ring-wrap { position: relative; width: 220px; height: 220px; margin: 20px auto 8px; }
   .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-  .ring-bg { fill: none; stroke: var(--ring-bg); stroke-width: 12; }
-  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .3s linear, stroke .4s; }
-  .time {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-  }
-  .time .digits { font-size: 3.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .time .label { color: var(--muted); font-size: .95rem; }
-  .controls { display: flex; gap: 12px; justify-content: center; margin: 24px 0 8px; }
-  .controls button {
-    padding: 12px 20px; border-radius: 12px; border: none; cursor: pointer; font-size: 1rem; font-weight: 600;
-  }
-  #startBtn { background: var(--accent); color: var(--btn-text); min-width: 120px; }
-  .secondary { background: var(--ring-bg); color: var(--text); }
-  .stats { text-align: center; color: var(--muted); margin-top: 12px; font-size: .95rem; }
-  .stats strong { color: var(--text); }
-  details { margin-top: 20px; }
-  summary { cursor: pointer; font-weight: 600; }
-  .settings { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; align-items: center; margin-top: 12px; }
-  .settings input[type=number] { width: 80px; padding: 6px; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
-  .settings .full { grid-column: 1 / -1; display: flex; gap: 8px; }
-  .settings .full button { flex: 1; padding: 8px; border-radius: 8px; border: none; cursor: pointer; }
-  .save { background: var(--accent); color: var(--btn-text); }
+  .ring-bg { fill: none; stroke: var(--soft); stroke-width: 8; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
+  .time { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .digits { font-size: 3.2rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+  .mode-label { color: var(--muted); font-size: .9rem; }
+  .current { text-align: center; font-size: .95rem; min-height: 1.4em; margin: 4px 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .current .none { color: var(--muted); }
+  .controls { display: flex; gap: 10px; justify-content: center; }
+  .controls button { border: none; border-radius: 10px; padding: 11px 18px; font-weight: 600; }
+  #startBtn { background: var(--accent); color: #fff; min-width: 120px; }
+  .ghost { background: var(--soft); color: var(--text); }
+  .today { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 16px; }
+  .today b { color: var(--text); }
+
+  /* 待辦 */
+  .add { display: flex; gap: 8px; }
+  .add input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 1rem; }
+  .add input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  .est { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .est button { border: none; background: none; color: var(--text); width: 28px; height: 100%; font-size: 1.1rem; }
+  .est span { min-width: 34px; text-align: center; font-size: .9rem; }
+  .add .addBtn { border: none; border-radius: 10px; padding: 0 16px; background: var(--accent); color: #fff; font-weight: 600; }
+  .filters { display: flex; gap: 16px; margin: 16px 0 4px; border-bottom: 1px solid var(--line); }
+  .filters button { border: none; background: none; color: var(--muted); padding: 6px 0 8px; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: .95rem; }
+  .filters button.on { color: var(--text); border-color: var(--accent); font-weight: 600; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 12px; padding: 12px 8px; border-bottom: 1px solid var(--line); border-radius: 8px; }
+  li:last-child { border-bottom: none; }
+  li.active { background: var(--soft); }
+  .check { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid #c8c8c8; background: none; padding: 0; color: #fff; font-size: 13px; line-height: 1; }
+  li.done .check { background: var(--accent); border-color: var(--accent); }
+  .name { flex: 1; min-width: 0; word-break: break-word; }
+  li.done .name { color: var(--muted); text-decoration: line-through; }
+  .count { color: var(--muted); font-size: .85rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .count.over { color: var(--accent); }
+  .focusBtn { border: 1px solid var(--line); background: none; color: var(--text); border-radius: 8px; padding: 4px 10px; font-size: .85rem; white-space: nowrap; }
+  li.active .focusBtn { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .del { border: none; background: none; color: var(--muted); font-size: 1.1rem; padding: 2px 4px; }
+  .del:hover { color: var(--accent); }
+  .empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: .95rem; }
+
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  .settings { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 12px; font-size: .95rem; }
+  .settings input[type=number] { width: 70px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .settings .full { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+  .settings .full button { border: none; border-radius: 8px; padding: 8px 12px; }
+  .settings .save { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body class="mode-work">
 <div class="app">
-  <h1>🍅 番茄鐘</h1>
-  <div class="card">
-    <div class="tabs" role="tablist">
+
+  <!-- 番茄鐘 -->
+  <section class="card timer">
+    <div class="tabs">
       <button data-mode="work" class="active">專注</button>
       <button data-mode="short">短休息</button>
       <button data-mode="long">長休息</button>
     </div>
-
     <div class="ring-wrap">
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
-        <circle class="ring-fg" id="ring" cx="60" cy="60" r="52"></circle>
-      </svg>
-      <div class="time">
-        <div class="digits" id="digits">25:00</div>
-        <div class="label" id="modeLabel">專注時間</div>
-      </div>
+      <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fg" id="ring" cx="60" cy="60" r="54"/></svg>
+      <div class="time"><div class="digits" id="digits">25:00</div><div class="mode-label" id="modeLabel">專注時間</div></div>
     </div>
-
+    <div class="current" id="current"></div>
     <div class="controls">
       <button id="startBtn">開始</button>
-      <button id="resetBtn" class="secondary">重設</button>
-      <button id="skipBtn" class="secondary" title="跳到下一階段">跳過</button>
+      <button class="ghost" id="resetBtn">重設</button>
+      <button class="ghost" id="skipBtn">跳過</button>
     </div>
-
-    <div class="stats">
-      今日完成番茄數：<strong id="todayCount">0</strong>　｜　
-      距離長休息還有 <strong id="untilLong">4</strong> 個
-    </div>
-
+    <div class="today">今日完成 <b id="todayCount">0</b> 顆番茄 · 再 <b id="untilLong">4</b> 顆長休息</div>
     <details>
-      <summary>⚙️ 設定</summary>
+      <summary>設定</summary>
       <div class="settings">
-        <label for="workMin">專注時長（分鐘）</label><input type="number" id="workMin" min="1" max="180">
+        <label for="workMin">專注（分鐘）</label><input type="number" id="workMin" min="1" max="180">
         <label for="shortMin">短休息（分鐘）</label><input type="number" id="shortMin" min="1" max="60">
         <label for="longMin">長休息（分鐘）</label><input type="number" id="longMin" min="1" max="120">
-        <label for="interval">幾個番茄後長休息</label><input type="number" id="interval" min="1" max="12">
-        <label for="autoStart">階段結束後自動開始下一段</label><input type="checkbox" id="autoStart">
-        <label for="sound">時間到播放提示音</label><input type="checkbox" id="sound">
-        <div class="full">
-          <button class="save" id="saveBtn">儲存設定</button>
-          <button class="secondary" id="testSound">試聽提示音</button>
-          <button class="secondary" id="clearCount">清除今日次數</button>
-        </div>
+        <label for="interval">幾顆番茄後長休息</label><input type="number" id="interval" min="1" max="12">
+        <label for="autoStart">自動開始下一階段</label><input type="checkbox" id="autoStart">
+        <label for="sound">提示音</label><input type="checkbox" id="sound">
+        <div class="full"><button class="save" id="saveBtn">儲存</button><button class="ghost" id="testSound">試聽提示音</button></div>
       </div>
     </details>
-  </div>
+  </section>
+
+  <!-- 待辦清單 -->
+  <section class="card">
+    <form class="add" id="addForm" autocomplete="off">
+      <input id="addInput" placeholder="新增待辦事項…" maxlength="120">
+      <div class="est" title="預估番茄數">
+        <button type="button" id="estMinus" aria-label="減少">−</button><span id="estVal">🍅1</span><button type="button" id="estPlus" aria-label="增加">+</button>
+      </div>
+      <button class="addBtn" type="submit">新增</button>
+    </form>
+    <div class="filters">
+      <button data-filter="open" class="on">待辦 <span id="nOpen">0</span></button>
+      <button data-filter="done">已完成 <span id="nDone">0</span></button>
+    </div>
+    <ul id="list"></ul>
+    <details id="moreBox">
+      <summary>更多</summary>
+      <div class="settings"><div class="full"><button class="ghost" id="clearDone">清除已完成</button></div></div>
+    </details>
+  </section>
+
 </div>
 
 <script>
 (() => {
-  // ===== 設定與狀態 =====
-  const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: false, sound: true };
-  const LABELS = { work: '專注時間', short: '短休息', long: '長休息' };
-
-  // localStorage 在無痕模式或被封鎖時可能丟錯，所以全部包 try/catch
+  // ===== 儲存（localStorage 在無痕或被封鎖時可能丟錯，所以包 try/catch）=====
+  // pomo-settings 與 pomo-count-日期 和原本的番茄鐘網頁共用，同網域部署時設定與次數會一致
   const store = {
-    get(key, fallback) {
-      try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-      catch { return fallback; }
-    },
-    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+    get(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const $ = id => document.getElementById(id);
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const todayKey = () => 'pomo-count-' + new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+
+  // ===================== 待辦清單 =====================
+  let tasks = store.get('todo-tasks', []);          // {id, title, est, spent, done}
+  let currentId = store.get('todo-current', null);   // 目前專注的任務
+  let filter = 'open', est = 1;
+  const saveTasks = () => { store.set('todo-tasks', tasks); store.set('todo-current', currentId); };
+  const current = () => tasks.find(t => t.id === currentId && !t.done) || null;
+
+  function renderList() {
+    const open = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
+    $('nOpen').textContent = open.length; $('nDone').textContent = done.length;
+    const items = filter === 'open' ? open : done;
+    $('list').innerHTML = items.length ? items.map(t => `
+      <li data-id="${t.id}" class="${t.done ? 'done' : ''} ${t.id === currentId && !t.done ? 'active' : ''}">
+        <button class="check" data-act="toggle" aria-label="${t.done ? '標為未完成' : '完成'}">${t.done ? '✓' : ''}</button>
+        <span class="name">${esc(t.title)}</span>
+        <span class="count ${t.spent > t.est ? 'over' : ''}" title="已用 / 預估番茄">🍅 ${t.spent}/${t.est}</span>
+        ${t.done ? '' : `<button class="focusBtn" data-act="focus">${t.id === currentId ? '專注中' : '專注'}</button>`}
+        <button class="del" data-act="del" aria-label="刪除">×</button>
+      </li>`).join('')
+      : `<li class="empty">${filter === 'open' ? '目前沒有待辦事項，從上方新增一個吧' : '還沒有完成的事項'}</li>`;
+    const c = current();
+    $('current').innerHTML = c ? `正在做：<b>${esc(c.title)}</b>` : '<span class="none">點待辦事項的「專注」來綁定任務</span>';
+  }
+
+  $('estMinus').onclick = () => { est = Math.max(1, est - 1); $('estVal').textContent = '🍅' + est; };
+  $('estPlus').onclick  = () => { est = Math.min(10, est + 1); $('estVal').textContent = '🍅' + est; };
+  $('addForm').onsubmit = e => {
+    e.preventDefault();
+    const title = $('addInput').value.trim();
+    if (!title) return;
+    tasks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, est, spent: 0, done: false });
+    if (!current()) currentId = tasks[tasks.length - 1].id;  // 沒有綁定任務時，自動綁第一個新增的
+    $('addInput').value = ''; est = 1; $('estVal').textContent = '🍅1';
+    if (filter !== 'open') setFilter('open');
+    saveTasks(); renderList();
+  };
+  $('list').onclick = e => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const t = tasks.find(x => x.id === btn.closest('li').dataset.id); if (!t) return;
+    if (btn.dataset.act === 'toggle') {
+      t.done = !t.done;
+      if (t.done && t.id === currentId) currentId = (tasks.find(x => !x.done) || {}).id || null; // 自動換下一個
+    } else if (btn.dataset.act === 'focus') {
+      currentId = t.id;
+      if (mode !== 'work') setMode('work');
+    } else if (btn.dataset.act === 'del') {
+      if (!confirm(`刪除「${t.title}」？`)) return;
+      tasks = tasks.filter(x => x !== t);
+      if (currentId === t.id) currentId = null;
+    }
+    saveTasks(); renderList();
+  };
+  function setFilter(f) {
+    filter = f;
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('on', b.dataset.filter === f));
+    renderList();
+  }
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => setFilter(b.dataset.filter));
+  $('clearDone').onclick = () => {
+    const n = tasks.filter(t => t.done).length;
+    if (!n || !confirm(`清除 ${n} 項已完成事項？`)) return;
+    tasks = tasks.filter(t => !t.done); saveTasks(); renderList();
   };
 
+  // ===================== 番茄鐘 =====================
+  const DEFAULTS = { work: 25, short: 5, long: 15, interval: 4, autoStart: false, sound: true };
+  const LABELS = { work: '專注時間', short: '短休息', long: '長休息' };
   let settings = { ...DEFAULTS, ...store.get('pomo-settings', {}) };
-  let mode = 'work';
-  let totalSec = settings.work * 60;
-  let remainingSec = totalSec;
-  let endTime = null;      // 計時中時記錄「預計結束的時間戳」
-  let tickId = null;
-  let cycleCount = 0;      // 本輪已完成幾個番茄（用來判斷長休息）
-
-  const todayKey = () => 'pomo-count-' + new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+  let mode = 'work', totalSec = settings.work * 60, remainingSec = totalSec;
+  let endTime = null, tickId = null, cycleCount = 0;
   let todayCount = store.get(todayKey(), 0);
 
-  // ===== DOM =====
-  const $ = id => document.getElementById(id);
-  const digits = $('digits'), modeLabel = $('modeLabel'), ring = $('ring');
-  const startBtn = $('startBtn');
-  const CIRC = 2 * Math.PI * 52;
+  const ring = $('ring'), startBtn = $('startBtn'), CIRC = 2 * Math.PI * 54;
   ring.style.strokeDasharray = CIRC;
+  const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
 
-  // ===== 畫面更新 =====
-  function fmt(sec) {
-    const m = Math.floor(sec / 60), s = sec % 60;
-    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-  }
-  function render() {
-    digits.textContent = fmt(remainingSec);
-    modeLabel.textContent = LABELS[mode];
+  function renderTimer() {
+    $('digits').textContent = fmt(remainingSec);
+    $('modeLabel').textContent = LABELS[mode];
     ring.style.strokeDashoffset = CIRC * (1 - remainingSec / totalSec);
-    document.title = `${fmt(remainingSec)} · ${LABELS[mode]} | 番茄鐘`;
+    const c = current();
+    document.title = tickId || remainingSec < totalSec
+      ? `${fmt(remainingSec)} · ${mode === 'work' && c ? c.title : LABELS[mode]}` : '番茄待辦';
     startBtn.textContent = tickId ? '暫停' : (remainingSec < totalSec ? '繼續' : '開始');
     $('todayCount').textContent = todayCount;
     $('untilLong').textContent = settings.interval - (cycleCount % settings.interval);
     document.body.className = 'mode-' + mode;
-    document.querySelectorAll('.tabs button').forEach(b =>
-      b.classList.toggle('active', b.dataset.mode === mode));
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   }
-
-  // ===== 計時核心 =====
-  // 用「結束時間戳 - 現在時間」算剩餘秒數，而不是每秒減 1，
-  // 這樣分頁切到背景、瀏覽器降低 setInterval 頻率時也不會跑慢。
+  // 用「結束時間戳 - 現在」算剩餘秒數，分頁在背景被降頻也不會跑慢
   function tick() {
     remainingSec = Math.max(0, Math.round((endTime - Date.now()) / 1000));
-    render();
+    renderTimer();
     if (remainingSec <= 0) finish();
   }
   function start() {
@@ -174,135 +255,87 @@
     unlockAudio();
     endTime = Date.now() + remainingSec * 1000;
     tickId = setInterval(tick, 250);
-    render();
+    renderTimer();
   }
-  function pause() {
-    clearInterval(tickId); tickId = null;
-    render();
-  }
-  function setMode(newMode) {
-    pause();
-    mode = newMode;
-    totalSec = settings[mode] * 60;
-    remainingSec = totalSec;
-    render();
-  }
-  // completed = true 表示專注階段是「正常完成」；按「跳過」則不算完成，一律進短休息
+  function pause() { clearInterval(tickId); tickId = null; renderTimer(); }
+  function setMode(m) { pause(); mode = m; totalSec = settings[m] * 60; remainingSec = totalSec; renderTimer(); }
   function nextMode(completed = false) {
     if (mode === 'work') return (completed && cycleCount % settings.interval === 0) ? 'long' : 'short';
     return 'work';
   }
   function finish() {
     pause();
+    let body = '';
     if (mode === 'work') {
       cycleCount++;
-      todayCount = store.get(todayKey(), 0) + 1;   // 重讀一次，處理跨日
+      todayCount = store.get(todayKey(), 0) + 1;  // 重讀一次，處理跨日與另一個分頁
       store.set(todayKey(), todayCount);
+      const c = current();
+      if (c) { c.spent++; saveTasks(); renderList(); body = `「${c.title}」${c.spent}/${c.est} 🍅`; }
     }
-    const finished = LABELS[mode];
     const next = nextMode(true);
     if (settings.sound) beep();
-    notify(`${finished}結束！`, `接下來：${LABELS[next]}`);
+    notify(`${LABELS[mode]}結束！接下來：${LABELS[next]}`, body);
     setMode(next);
     if (settings.autoStart) start();
   }
 
-  // ===== 提示音（Web Audio API 產生，不需音檔）=====
+  // 提示音：Web Audio API 產生，不需音檔；瀏覽器規定要在使用者點擊後才能啟用
   let audioCtx = null;
   function unlockAudio() {
-    // 瀏覽器規定音訊必須在使用者點擊後才能啟用，所以在按「開始」時先建立
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     } catch {}
   }
   function beep() {
-    unlockAudio();
-    if (!audioCtx) return;
+    unlockAudio(); if (!audioCtx) return;
     const now = audioCtx.currentTime;
-    [0, 0.35, 0.7].forEach(offset => {           // 嗶 嗶 嗶 三聲
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
+    [0, .35, .7].forEach(o => {
+      const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
       osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, now + offset);
-      gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.3);
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(now + offset);
-      osc.stop(now + offset + 0.32);
+      g.gain.setValueAtTime(.0001, now + o);
+      g.gain.exponentialRampToValueAtTime(.4, now + o + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, now + o + .3);
+      osc.connect(g).connect(audioCtx.destination);
+      osc.start(now + o); osc.stop(now + o + .32);
     });
   }
-
-  // ===== 桌面通知（使用者允許才會出現，拒絕也不影響功能）=====
   function notify(title, body) {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-      try { new Notification(title, { body }); } catch {}
-    }
-  }
-  function askNotifyPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
+    if ('Notification' in window && Notification.permission === 'granted') { try { new Notification(title, { body }); } catch {} }
   }
 
-  // ===== 設定面板 =====
-  function loadSettingsToForm() {
-    $('workMin').value = settings.work;
-    $('shortMin').value = settings.short;
-    $('longMin').value = settings.long;
-    $('interval').value = settings.interval;
-    $('autoStart').checked = settings.autoStart;
-    $('sound').checked = settings.sound;
+  // 設定
+  const clampInt = (v, lo, hi, f) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : f; };
+  function loadForm() {
+    ['work', 'short', 'long', 'interval'].forEach(k => $(k === 'interval' ? k : k + 'Min').value = settings[k]);
+    $('autoStart').checked = settings.autoStart; $('sound').checked = settings.sound;
   }
-  function clampInt(v, min, max, fallback) {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
-  }
-  $('saveBtn').addEventListener('click', () => {
+  $('saveBtn').onclick = () => {
     settings = {
-      work: clampInt($('workMin').value, 1, 180, DEFAULTS.work),
-      short: clampInt($('shortMin').value, 1, 60, DEFAULTS.short),
-      long: clampInt($('longMin').value, 1, 120, DEFAULTS.long),
-      interval: clampInt($('interval').value, 1, 12, DEFAULTS.interval),
-      autoStart: $('autoStart').checked,
-      sound: $('sound').checked
+      work: clampInt($('workMin').value, 1, 180, 25), short: clampInt($('shortMin').value, 1, 60, 5),
+      long: clampInt($('longMin').value, 1, 120, 15), interval: clampInt($('interval').value, 1, 12, 4),
+      autoStart: $('autoStart').checked, sound: $('sound').checked
     };
-    store.set('pomo-settings', settings);
-    loadSettingsToForm();
-    setMode(mode);   // 套用新時長並重設目前階段
-  });
-  $('testSound').addEventListener('click', beep);
-  $('clearCount').addEventListener('click', () => {
-    if (!confirm('確定要清除今日完成次數嗎？')) return;
-    todayCount = 0; cycleCount = 0;
-    store.set(todayKey(), 0);
-    render();
-  });
+    store.set('pomo-settings', settings); loadForm(); setMode(mode);
+  };
+  $('testSound').onclick = beep;
 
-  // ===== 按鈕事件 =====
-  startBtn.addEventListener('click', () => {
-    askNotifyPermission();
+  startBtn.onclick = () => {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
     tickId ? pause() : start();
-  });
-  $('resetBtn').addEventListener('click', () => setMode(mode));
-  $('skipBtn').addEventListener('click', () => setMode(nextMode()));
-  document.querySelectorAll('.tabs button').forEach(b =>
-    b.addEventListener('click', () => setMode(b.dataset.mode)));
-
-  // 鍵盤快捷鍵：空白鍵 開始/暫停，R 重設
+  };
+  $('resetBtn').onclick = () => setMode(mode);
+  $('skipBtn').onclick = () => setMode(nextMode());
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  // 快捷鍵：空白鍵 開始/暫停（在輸入框打字時不觸發）
   document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
+    if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
     if (e.code === 'Space') { e.preventDefault(); startBtn.click(); }
-    if (e.key === 'r' || e.key === 'R') $('resetBtn').click();
   });
-
-  // 切回分頁時立即校正一次畫面
   document.addEventListener('visibilitychange', () => { if (tickId) tick(); });
 
-  loadSettingsToForm();
-  render();
+  loadForm(); renderList(); renderTimer();
 })();
 </script>
 </body>
